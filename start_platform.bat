@@ -6,7 +6,7 @@ echo =======================================================
 echo.
 
 echo [1/3] Starting FastAPI Backend on Port 8000...
-start "HireIQ Backend" cmd /k "cd backend && python main.py"
+start "HireIQ Backend" cmd /k "cd backend && venv\Scripts\python main.py"
 
 echo.
 echo [2/3] Starting React Frontend...

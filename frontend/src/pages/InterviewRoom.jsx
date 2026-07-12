@@ -6,6 +6,11 @@ import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
 import { MdWarning, MdShield, MdVideocam, MdMicOff, MdStop,
          MdFullscreen, MdBarChart, MdPerson, MdTimer } from 'react-icons/md';
+import { LiveKitRoom, RoomAudioRenderer, useRoomContext } from '@livekit/components-react';
+import { RoomEvent } from 'livekit-client';
+import '@livekit/components-styles';
+import CustomInterviewCall from '../components/CustomInterviewCall';
+import { useAuth } from '../context/AuthContext';
 
 // ── Timezone-Aware Timestamp Formatter ──────────────────────────────────────────
 const formatTimestamp = (ts) => {
@@ -142,8 +147,96 @@ function RecruiterMonitor({ candidateId, candidateName, violations, counts, elap
   );
 }
 
+// ── LiveKit Events Handler Component ───────────────────────────────────────────
+function LiveKitEventsHandler({ candidateId }) {
+  const room = useRoomContext();
+
+  useEffect(() => {
+    if (!room) return;
+
+    const onParticipantConnected = async (participant) => {
+      toast.success(`${participant.identity || 'Candidate'} joined the meeting`);
+      try {
+        await API.post(`/interviews/proctoring-event`, {
+          candidate_id: candidateId,
+          violation_type: 'candidate_joined',
+          severity: 'low',
+          details: `Candidate joined the LiveKit room`,
+          count: 1
+        });
+      } catch (err) {
+        console.error('Failed to report candidate joined', err);
+      }
+    };
+
+    const onParticipantDisconnected = async (participant) => {
+      toast.error('Participant left the meeting');
+      try {
+        await API.post(`/interviews/proctoring-event`, {
+          candidate_id: candidateId,
+          violation_type: 'candidate_left',
+          severity: 'low',
+          details: `Candidate left the LiveKit room`,
+          count: 1
+        });
+      } catch (err) {
+        console.error('Failed to report candidate left', err);
+      }
+    };
+
+    const onTrackMuted = async (publication, participant) => {
+      if (participant.identity.startsWith('candidate')) {
+        const isAudio = publication.kind === 'audio';
+        const type = isAudio ? 'mic_muted' : 'video_muted';
+        const details = isAudio ? 'Candidate microphone is now Muted' : 'Candidate camera is now Muted';
+        try {
+          await API.post(`/interviews/proctoring-event`, {
+            candidate_id: candidateId,
+            violation_type: type,
+            severity: 'low',
+            details,
+            count: 1
+          });
+        } catch (err) {}
+      }
+    };
+
+    const onTrackUnmuted = async (publication, participant) => {
+      if (participant.identity.startsWith('candidate')) {
+        const isAudio = publication.kind === 'audio';
+        const type = isAudio ? 'mic_active' : 'video_active';
+        const details = isAudio ? 'Candidate microphone is now Active' : 'Candidate camera is now Active';
+        try {
+          await API.post(`/interviews/proctoring-event`, {
+            candidate_id: candidateId,
+            violation_type: type,
+            severity: 'low',
+            details,
+            count: 1
+          });
+        } catch (err) {}
+      }
+    };
+
+    room.on(RoomEvent.ParticipantConnected, onParticipantConnected);
+    room.on(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
+    room.on(RoomEvent.TrackMuted, onTrackMuted);
+    room.on(RoomEvent.TrackUnmuted, onTrackUnmuted);
+
+    return () => {
+      room.off(RoomEvent.ParticipantConnected, onParticipantConnected);
+      room.off(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
+      room.off(RoomEvent.TrackMuted, onTrackMuted);
+      room.off(RoomEvent.TrackUnmuted, onTrackUnmuted);
+    };
+  }, [room, candidateId]);
+
+  return null;
+}
+
 // ── Main InterviewRoom Component ───────────────────────────────────────────────
 export default function InterviewRoom() {
+  const { user } = useAuth();
   const { candidateId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -155,144 +248,26 @@ export default function InterviewRoom() {
   const [elapsed, setElapsed] = useState(0);
   const [violations, setViolations] = useState([]);
   const [counts, setCounts] = useState({});
-  const [jitsiScriptLoaded, setJitsiScriptLoaded] = useState(false);
-  const [jitsiScriptError, setJitsiScriptError] = useState(null);
-  const [jitsiInitError, setJitsiInitError] = useState(null);
+  const [livekitToken, setLivekitToken] = useState(null);
+  const [livekitRoom, setLivekitRoom] = useState(null);
+  const [livekitUrl, setLivekitUrl] = useState(null);
   const [ending, setEnding] = useState(false);
   const [liveData, setLiveData] = useState(null);
 
-  const jitsiContainerRef = useRef(null);
-  const jitsiApiRef = useRef(null);
   const timerRef = useRef(null);
 
-  const launchJitsi = useCallback(async () => {
-    if (!jitsiScriptLoaded || !window.JitsiMeetExternalAPI || !jitsiContainerRef.current) return;
-    if (jitsiApiRef.current) return;
-
+  const launchSession = useCallback(async () => {
     try {
       // Get recruiter token info for room and domain
       const tokenRes = await API.post('/interviews/tokens/recruiter', { candidate_id: candidateId });
-      const { room, domain } = tokenRes.data;
-
-      const options = {
-        roomName: room,
-        parentNode: jitsiContainerRef.current,
-        // Omit custom JWT token on public meet.jit.si to avoid authentication errors
-        jwt: undefined,
-        userInfo: {
-          displayName: tokenRes.data.display_name || 'Recruiter',
-          email: '',
-        },
-        configOverwrite: {
-          autoJoin: true,
-          startWithAudioMuted: false,
-          startWithVideoMuted: false,
-          disableDeepLinking: true,
-          enableNoisyMicDetection: false,
-          hideConferenceTimer: false,
-          disableThirdPartyRequests: true,
-          // Recruiter moderator settings (UI level controls)
-          disableScreensharing: false,
-          enableRecording: true,
-          enableLocalRecording: true,
-          muteEveryone: true,
-          participantsPane: { enabled: true },
-          remoteVideoMenu: {
-            disableKick: false,
-            disableGrantModerator: false,
-          }
-        },
-        interfaceConfigOverwrite: {
-          SHOW_JITSI_WATERMARK: false,
-          SHOW_WATERMARK_FOR_GUESTS: false,
-          HIDE_INVITE_MORE_HEADER: true,
-          DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
-          TOOLBAR_BUTTONS: [
-            'microphone', 'camera', 'desktop', 'fullscreen',
-            'fodeviceselection', 'hangup', 'chat', 'recording',
-            'livestreaming', 'settings', 'raisehand', 'videoquality',
-            'filmstrip', 'stats', 'shortcuts', 'tileview', 'select-background', 'mute-everyone',
-          ],
-        },
-        width: '100%',
-        height: '100%',
-      };
-
-      jitsiApiRef.current = new window.JitsiMeetExternalAPI(domain || 'meet.jit.si', options);
-      jitsiApiRef.current.addEventListeners({
-        videoConferenceJoined: () => console.log('[Jitsi] Recruiter joined'),
-        participantJoined: async (p) => {
-          console.log('[Jitsi] Participant joined:', p);
-          toast.success(`${p.displayName || 'Candidate'} joined the meeting`);
-          try {
-            await API.post(`/interviews/proctoring-event`, {
-              candidate_id: candidateId,
-              violation_type: 'candidate_joined',
-              severity: 'low',
-              details: `${p.displayName || 'Candidate'} joined the Jitsi room`,
-              count: 1
-            });
-          } catch (err) {
-            console.error('Failed to report candidate joined', err);
-          }
-        },
-        participantLeft: async (p) => {
-          console.log('[Jitsi] Participant left:', p);
-          toast.error('Participant left the meeting');
-          try {
-            await API.post(`/interviews/proctoring-event`, {
-              candidate_id: candidateId,
-              violation_type: 'candidate_left',
-              severity: 'low',
-              details: `Candidate left the Jitsi room`,
-              count: 1
-            });
-          } catch (err) {
-            console.error('Failed to report candidate left', err);
-          }
-        },
-        audioMuteStatusChanged: async (p) => {
-          console.log('[Jitsi] Audio mute status changed:', p);
-          if (jitsiApiRef.current) {
-            const isLocal = p.id === 'local' || p.id === jitsiApiRef.current._myUserId;
-            if (!isLocal) {
-              const statusText = p.muted ? 'Muted' : 'Active';
-              try {
-                await API.post(`/interviews/proctoring-event`, {
-                  candidate_id: candidateId,
-                  violation_type: p.muted ? 'mic_muted' : 'mic_active',
-                  severity: 'low',
-                  details: `Candidate microphone is now ${statusText}`,
-                  count: 1
-                });
-              } catch (err) {}
-            }
-          }
-        },
-        videoMuteStatusChanged: async (p) => {
-          console.log('[Jitsi] Video mute status changed:', p);
-          if (jitsiApiRef.current) {
-            const isLocal = p.id === 'local' || p.id === jitsiApiRef.current._myUserId;
-            if (!isLocal) {
-              const statusText = p.muted ? 'Muted' : 'Active';
-              try {
-                await API.post(`/interviews/proctoring-event`, {
-                  candidate_id: candidateId,
-                  violation_type: p.muted ? 'video_muted' : 'video_active',
-                  severity: 'low',
-                  details: `Candidate camera is now ${statusText}`,
-                  count: 1
-                });
-              } catch (err) {}
-            }
-          }
-        }
-      });
+      setLivekitToken(tokenRes.data.livekit_token);
+      setLivekitRoom(tokenRes.data.livekit_room);
+      setLivekitUrl(tokenRes.data.livekit_url);
     } catch (err) {
-      console.error('Jitsi launch error:', err);
-      setJitsiInitError(err.message || 'Failed to initialize the Jitsi API.');
+      console.error('LiveKit launch error:', err);
+      toast.error(err.response?.data?.detail || 'Failed to authenticate secure session');
     }
-  }, [jitsiScriptLoaded, candidateId, candidate]);
+  }, [candidateId]);
 
   // Live polling for transcript and proctoring
   useEffect(() => {
@@ -339,36 +314,15 @@ export default function InterviewRoom() {
     return () => clearInterval(timerRef.current);
   }, [sessionStarted]);
 
-  // Load Jitsi script
+  // Auto-launch LiveKit when session starts
   useEffect(() => {
-    if (window.JitsiMeetExternalAPI) {
-      setJitsiScriptLoaded(true);
-      return;
-    }
-    const existingScript = document.getElementById('jitsi-script');
-    if (existingScript) {
-      existingScript.addEventListener('load', () => setJitsiScriptLoaded(true));
-      existingScript.addEventListener('error', () => setJitsiScriptError('Failed to load Jitsi Meet library. Please check your internet connection.'));
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'jitsi-script';
-    script.src = 'https://meet.jit.si/external_api.js';
-    script.async = true;
-    script.onload = () => setJitsiScriptLoaded(true);
-    script.onerror = () => setJitsiScriptError('Failed to load Jitsi Meet library. Please check your internet connection.');
-    document.head.appendChild(script);
-  }, []);
-
-  // Auto-launch Jitsi when session starts and script is loaded
-  useEffect(() => {
-    if (sessionStarted && jitsiScriptLoaded) {
+    if (sessionStarted) {
       const timer = setTimeout(() => {
-        launchJitsi();
+        launchSession();
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [sessionStarted, jitsiScriptLoaded, launchJitsi]);
+  }, [sessionStarted, launchSession]);
 
   const startSession = async () => {
     try {
@@ -389,8 +343,6 @@ export default function InterviewRoom() {
     if (ending) return;
     setEnding(true);
     clearInterval(timerRef.current);
-    jitsiApiRef.current?.dispose();
-    jitsiApiRef.current = null;
     try {
       await API.post('/interviews/end', { candidate_id: candidateId });
       toast.success('Interview ended. Generating AI analysis...');
@@ -562,37 +514,37 @@ export default function InterviewRoom() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* LEFT PANEL: Candidate Video & Transcript */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: '1px solid #E5E7EB', background: '#F9FAFB' }}>
-          {/* Jitsi Area */}
+          {/* LiveKit Video Area */}
           <div style={{ height: '55%', position: 'relative', background: '#000', borderBottom: '1px solid #E5E7EB' }}>
-            {(jitsiScriptError || jitsiInitError) ? (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#fff', padding: 20 }}>
-                <MdWarning size={40} style={{ color: '#fca5a5', marginBottom: 12 }} />
-                <div style={{ fontSize: '15px', fontWeight: 600, color: '#fca5a5', marginBottom: 8 }}>Jitsi Connection Failed</div>
-                <div style={{ fontSize: '13px', color: '#94a3b8', textAlign: 'center', maxWidth: 400, marginBottom: 16 }}>
-                  {jitsiScriptError || jitsiInitError}
+            {(!livekitToken || !livekitUrl) ? (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+                <div style={{ textAlign: 'center', color: '#9CA3AF' }}>
+                  <div style={{ border: '3px solid rgba(99, 102, 241, 0.1)', borderTop: '3px solid #6366f1', borderRadius: '50%', width: 32, height: 32, animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                  <div style={{ fontSize: '13px' }}>Connecting to secure video stream...</div>
                 </div>
-                {candidate?.interview?.meeting_link && (
-                  <button 
-                    className="btn btn-outline btn-sm" 
-                    onClick={() => window.open(candidate.interview.meeting_link, '_blank')}
-                    style={{ color: '#fff', borderColor: '#475569' }}
-                  >
-                    Open Jitsi in New Tab
-                  </button>
-                )}
               </div>
             ) : (
-              <>
-                <div ref={jitsiContainerRef} style={{ width: '100%', height: '100%' }} />
-                {!jitsiScriptLoaded && (
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
-                    <div style={{ textAlign: 'center', color: '#9CA3AF' }}>
-                      <div className="spinner" style={{ margin: '0 auto 12px' }} />
-                      <div style={{ fontSize: '13px' }}>Loading secure encrypted video room...</div>
-                    </div>
-                  </div>
-                )}
-              </>
+              <div style={{ width: '100%', height: '100%' }}>
+                <LiveKitRoom
+                  video={true}
+                  audio={true}
+                  token={livekitToken}
+                  serverUrl={livekitUrl}
+                  connectOptions={{ autoSubscribe: true }}
+                  onDisconnected={() => {
+                    toast.success('Disconnected from interview session.');
+                  }}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <CustomInterviewCall
+                    onLeave={endSession}
+                    candidateName={candidate.name}
+                    recruiterName={user?.name || 'Interviewer'}
+                  />
+                  <RoomAudioRenderer />
+                  <LiveKitEventsHandler candidateId={candidateId} />
+                </LiveKitRoom>
+              </div>
             )}
           </div>
 

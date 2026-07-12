@@ -410,7 +410,7 @@ async def generate_interview_feedback(candidate_id: str) -> dict:
     transcripts = candidate.get("transcript", [])
     resume_score = float(candidate.get("score", 0.0))
 
-    # Fetch Jitsi session doc to compute the actual duration and timestamps
+    # Fetch LiveKit session doc to compute the actual duration and timestamps
     session = await interview_sessions_col.find_one(
         {"candidate_id": candidate_id},
         sort=[("start_time", -1)]

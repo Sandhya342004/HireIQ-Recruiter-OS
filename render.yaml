@@ -31,9 +31,9 @@ services:
         value: "HireIQ Recruiter Platform"
       - key: UPLOAD_DIR
         value: "uploads"
-      - key: JITSI_APP_ID
-        value: "hireiq"
-      - key: JITSI_SECRET
-        value: "hireiq_secure_interview_secret_2026"
-      - key: JITSI_DOMAIN
-        value: "meet.jit.si"
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false

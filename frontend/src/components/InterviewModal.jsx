@@ -8,6 +8,7 @@ export default function InterviewModal({ candidate, onClose, onSuccess }) {
     date: '', time: '10:00', mode: 'online', location: '', notes: '', duration: 30
   });
   const [loading, setLoading] = useState(false);
+  const [scheduledLink, setScheduledLink] = useState(null);
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -16,16 +17,62 @@ export default function InterviewModal({ candidate, onClose, onSuccess }) {
     if (!form.date) { toast.error('Please select a date'); return; }
     setLoading(true);
     try {
-      await API.post(`/interviews/schedule`, { ...form, candidate_id: candidate.id, job_id: candidate.job_id });
+      const res = await API.post(`/interviews/schedule`, { ...form, candidate_id: candidate.id, job_id: candidate.job_id });
       toast.success('Interview scheduled!');
+      
+      let link = res.data.candidate_join_url;
+      if (!link && res.data.secure_token) {
+        let base = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+        if (base.endsWith('/')) base = base.slice(0, -1);
+        link = `${base}/candidate-interview/${res.data.secure_token}`;
+      }
+      setScheduledLink(link || 'Link generation pending');
       onSuccess();
-      onClose();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to schedule interview');
     } finally {
       setLoading(false);
     }
   };
+
+  if (scheduledLink) {
+    return (
+      <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="modal-box animate-slide" style={{ maxWidth: 440, textAlign: 'center', padding: 28 }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>📅</div>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>Interview Scheduled!</h3>
+          <p style={{ fontSize: 12.5, color: '#64748b', lineHeight: 1.6, marginBottom: 20 }}>
+            The secure LiveKit interview session is ready. As requested, <b>no email has been sent to the candidate</b>. Please copy the invite link below to share with them directly.
+          </p>
+          
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 20, wordBreak: 'break-all', fontSize: 12, fontWeight: 600, color: '#1e293b', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span style={{ color: '#64748b', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Candidate Invite Link</span>
+            <span style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '8px 10px', borderRadius: 6, userSelect: 'all', color: '#4f46e5' }}>{scheduledLink}</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(scheduledLink);
+                toast.success('Link copied to clipboard!');
+              }}
+              className="btn btn-info"
+              style={{ padding: '10px 20px', fontSize: 13, fontWeight: 700 }}
+            >
+              📋 Copy Invite Link
+            </button>
+            <button 
+              onClick={onClose}
+              className="btn btn-outline"
+              style={{ padding: '10px 20px', fontSize: 13 }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>

@@ -58,9 +58,9 @@ Before initiating the deployments, set up and copy credentials from the followin
    - `EMAIL_FROM`: *Your sender email configured in Brevo*
    - `APP_NAME`: `HireIQ Recruitment Platform`
    - `UPLOAD_DIR`: `uploads`
-   - `JITSI_APP_ID`: `hireiq`
-   - `JITSI_SECRET`: `hireiq_secure_interview_secret_2026`
-   - `JITSI_DOMAIN`: `meet.jit.si`
+   - `LIVEKIT_URL`: *Your LiveKit Server URL (e.g., wss://my-livekit.livekit.cloud)*
+   - `LIVEKIT_API_KEY`: *Your LiveKit API Key*
+   - `LIVEKIT_API_SECRET`: *Your LiveKit API Secret*
 6. Click **Deploy Web Service**.
 7. Once deployed successfully, copy your backend's public URL (e.g., `https://hireiq-backend.onrender.com`).
 
@@ -100,4 +100,4 @@ Once both services are running, perform the following validation steps:
 1. **Backend Health Check:** Open `https://your-backend.onrender.com/health` in your browser. Verify it returns `{"status":"ok", "database":"connected"}`.
 2. **Dashboard Sourcing:** Log in to your recruiter portal, upload a JD, and verify that the system successfully parses keywords.
 3. **Resume Screening:** Upload a batch of resumes and ensure the scoring engine processes them without errors.
-4. **Email Reminders:** Schedule a mock interview. Verify that the recruiter receives an confirmation email containing the dynamic invite link, and check that the link points to your vercel app domain instead of localhost.
+4. **Manual Sharing:** Schedule a mock interview. Verify that the recruiter portal displays a confirmation panel with the dynamic candidate invite link, and check that the link points to your vercel app domain instead of localhost.

@@ -73,7 +73,7 @@ class NotificationService:
                 candidate_name=candidate["name"],
                 job_role=job_title,
                 time=candidate.get("interview_time", "N/A"),
-                meeting_link=candidate.get("interview_link", "#"),
+                meeting_link=candidate.get("interview", {}).get("meeting_link") or candidate.get("interview", {}).get("candidate_join_url", "#"),
                 minutes_left=15,
                 app_name=app_name
             )

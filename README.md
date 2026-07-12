@@ -22,7 +22,7 @@ HireIQ is a cloud-agnostic, high-performance Applicant Tracking System (ATS) and
     *   Certifications (5%)
     *   Resume/Profile Completeness (5%)
 *   **Recruiter Copilot Chatbot:** An interactive RAG chatbot allowing natural-language database query, candidate comparison, and automated hiring query responses.
-*   **Live Video Room with Jitsi Meet:** Embeds peer-to-peer audio-video channels directly inside candidate and recruiter screens (no accounts required).
+*   **Live Video Room with LiveKit:** Embeds native audio-video WebRTC channels directly inside candidate and recruiter screens.
 *   **In-Browser AI Proctoring:** Client-side **MediaPipe FaceMesh** eye/gaze tracking, face presence detection, tab-switching triggers, and copy-paste monitors.
 *   **Post-Interview Analysis:** Speech-to-text audio transcription via **Groq Whisper** combined with LLaMA narrative synthesis to deliver behavioral assessments, integrity checks, and summary reports.
 
