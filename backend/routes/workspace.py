@@ -123,7 +123,7 @@ async def upload_file(
         uploaded_url = await storage_service.upload_file(str(temp_path), unique_filename, folder="workspace_docs")
         
         # Clean up temp file if not local
-        if (storage_service.supabase_url and storage_service.supabase_key) or (storage_service.aws_access_key and storage_service.s3_bucket):
+        if storage_service.is_configured:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
                 
