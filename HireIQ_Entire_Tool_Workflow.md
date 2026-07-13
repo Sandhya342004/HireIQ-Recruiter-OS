@@ -1,217 +1,207 @@
-# HireIQ Recruiter OS — Full Platform Workflow
-
-This document explains exactly how the HireIQ Recruiter OS works step-by-step, from the moment a recruiter opens the platform to the final candidate hire decision. It is designed to be easily read by stakeholders and leads to understand how the frontend, backend, databases, and AI systems communicate.
+# HireIQ Backend & Frontend Workflow (Step by Step)
 
 ---
 
-## 1. High-Level Architecture Map
-
+### Step 1: Recruiter Opens the Website
+The recruiter opens the HireIQ portal.
+Example:
 ```
-                     +---------------------------------------+
-                     |           React 18 Frontend           |
-                     |  - Dashboard UI                       |
-                     |  - Proctoring Feeds (MediaPipe)       |
-                     |  - LiveKit Audio/Video Room           |
-                     +-------------------+-------------------+
-                                         |
-                                         | REST APIs / WebRTC / SSE
-                                         v
-                     +---------------------------------------+
-                     |            FastAPI Backend            |
-                     |  - Route Handlers                     |
-                     |  - Heuristic Scoring & Ranking Math   |
-                     |  - SMTP Notification Dispatcher       |
-                     +---+---------------+---------------+---+
-                         |               |               |
-             MongoDB Atlas |               | local / API   | Supabase URL
-                         v               v               v
-             +-----------+---+   +-------+-------+   +---+-----------+
-             |  NoSQL DB     |   | AI Engine &   |   | Cloud Storage |
-             |  - Users      |   | Vector Store  |   | - Resume PDFs |
-             |  - Jobs       |   | - Groq LLM    |   | - Audio Files |
-             |  - Candidates |   | - Whisper STT |   |               |
-             |  - Interviews |   | - Local FAISS |   |               |
-             +---------------+   +---------------+   +---------------+
+https://hireiq.posspole.com
+```
+The React frontend serves as the user interface (UI). It doesn't perform database queries or AI operations directly. When a recruiter clicks an action, the frontend makes API calls to the FastAPI backend.
+```
+Recruiter
+   ↓
+React Frontend
+   ↓
+FastAPI Backend
 ```
 
 ---
 
-## 2. Phase 1: Authentication & Onboarding
-
-### Step 1: User Registers
-1. Recruiter inputs Name, Email, and Password.
-2. Frontend sends payload to `POST /auth/register`.
-3. Backend checks if the Email already exists in MongoDB (`users` collection).
-4. If unique, the backend salts and hashes the password using `bcrypt` and inserts the user record.
-
-### Step 2: User Logs In
-1. Recruiter submits Email and Password.
-2. Frontend sends payload to `POST /auth/login`.
-3. Backend looks up the email. If found, it compares the submitted password against the stored bcrypt hash.
-4. Upon match, backend generates a JSON Web Token (JWT) signed with `your_jwt_secret` and sets a 24-hour expiration.
-5. The JWT is returned to the browser and saved in `localStorage`.
-6. Every subsequent HTTP request automatically appends this token inside the headers:
-   `Authorization: Bearer <JWT_TOKEN>`
-
----
-
-## 3. Phase 2: Job Description Creation
-
-### Step 3: Posting a New Job
-1. Recruiter fills out the job description (Title, Company, Location, Experience, and raw requirements text) and clicks **Create Job**.
-2. Frontend triggers `POST /jobs/create`.
-
-### Step 4: Structuring the Job Requirements
-1. Backend receives the raw text and forwards it to the **Groq LLaMA-3.3-70b** model.
-2. Groq extracts and formats the text into a clean JSON structure:
-   * **Required Skills:** Crucial languages, databases, or frameworks.
-   * **Preferred Skills:** Nice-to-have capabilities.
-   * **Experience Years:** Minimum target years of history.
-   * **Certifications:** Crucial certifications needed (e.g. AWS, CISSP).
-3. If Groq is offline, a local regex-driven fallback parser scans the text using pre-built keyword maps to complete the job profiles.
-4. The structured job is saved into the MongoDB `jobs` collection.
-
----
-
-## 4. Phase 3: Resume Upload, Extraction, & Normalization
-
-### Step 5: Uploading Candidate Resumes
-1. Recruiter uploads candidate resumes (PDF or Word formats).
-2. Frontend triggers `POST /resume/upload`.
-3. The backend receives the file and computes a unique file name.
-
-### Step 6: Storage Routing
-1. The backend checks if Supabase is configured.
-2. If keys are present in the `.env` file, the original PDF is uploaded to **Supabase Storage** under the `resumes` bucket.
-3. If keys are missing, the backend saves the PDF locally to the `uploads/resumes/` folder on the laptop.
-4. MongoDB updates with the public file URL.
-
-### Step 7: Multi-Stage Text Parsing
-The backend reads the document text using `PyMuPDF` (PDF) or `mammoth` (DOCX) and runs a multi-stage parser:
-1. **Rule-Based Extractors:** Uses standard regular expressions to parse contact data (Email, Phone).
-2. **AI Named Entity Recognition (GLiNER):** Locates entities such as candidate names, colleges, and company names.
-3. **LLM Timeline Parser:** Sends the remaining text to Groq. Groq parses candidate experience timelines, degrees, projects, and certifications into structured JSON.
-
-### Step 8: Skill Normalization
-To prevent scoring misses, candidate skills are normalized through a Master Skill Dictionary:
-* `NodeJS`, `Node.js`, and `Node JS` are all mapped to `node.js`.
-* `ReactJS` and `React.js` are mapped to `react`.
-* `JS` is mapped to `javascript`.
-
-### Step 9: Vector Generation
-1. The backend combines the candidate's normalized skills and experience text.
-2. The local `SentenceTransformers` model (`all-MiniLM-L6-v2`) encodes this text into a 384-dimensional dense vector.
-3. The vector is appended to the local in-memory **FAISS** database to support fast semantic candidate searches.
-
----
-
-## 5. Phase 4: Deterministic Scoring & Matching Engine
-
-### Step 10: Multi-Factor Scoring
-The engine compares the Job Description against the Candidate Resume across six distinct factors. The AI is **never** allowed to calculate the score numbers (preventing hallucinations).
-
+### Step 2: Recruiter Logs In
+The recruiter enters their email and password. The frontend sends these credentials to:
 ```
-         Skills (40%) ----+
-      Experience (25%) ---+
-        Semantic (15%) ---+
-        Projects (10%) ---+---> Deterministic Math ---> Final Candidate Score
-  Certifications (5%) ----+
-     Completeness (5%) ---+
+POST /auth/login
+```
+**Backend Flow:**
+1. Receives email and password.
+2. Checks MongoDB (`users` collection).
+3. If found, it compares the password against the stored bcrypt hash.
+4. Generates a signed JSON Web Token (JWT) with a 24-hour expiration.
+5. The JWT is returned to the frontend and saved in `localStorage`.
+Every subsequent request automatically includes:
+```
+Authorization: Bearer JWT_TOKEN
+```
+This is how the backend knows which recruiter is making calls.
+
+---
+
+### Step 3: Recruiter Creates a Job Description
+The recruiter enters the Job Title, Experience, Skills, and raw requirements, then clicks **Create Job**.
+The frontend sends the request to:
+```
+POST /jobs/create
 ```
 
-1. **Skills Matching (40%):** Evaluates skills in the resume against the job description using exact matching, alias matching, and RapidFuzz Levenshtein similarity.
-2. **Experience Evaluation (25%):** Compares total years of candidate experience against the job requirement.
-3. **Semantic Similarity (15%):** Compares the candidate embedding vector with the job embedding vector inside FAISS (calculating cosine similarity). This matches concepts, e.g., identifying that a candidate with "Deep Learning and Transformers" matches a job for "AI Specialist" even if the exact words differ.
-4. **Projects Relevance (10%):** Scans the project highlights for required technology keywords.
-5. **Certifications Match (5%):** Matches certificates to required ones.
-6. **Profile Completeness (5%):** Checks for missing profile sections.
-
-### Step 11: Applying Hard Penalties
-Deductions are applied for severe discrepancies:
-* **-20 points** if the candidate lacks more than 70% of the required skills.
-* **-10 points** if candidate experience is less than half of what is requested.
-
-### Step 12: Generating AI Feedback Notes
-1. The mathematical score sheet is sent to Groq.
-2. Groq formats a natural language summary explaining:
-   * **Key Strengths**
-   * **Key Concerns/Weaknesses**
-   * **Missing Skills**
-   * **Recommendation Verdict** (Hire, Hold, or Reject)
-
 ---
 
-## 6. Phase 5: Recruiter Copilot (Chatbot)
-
-### Step 13: Asking the Chatbot
-1. Recruiter types a question (e.g. "Find candidates with Python experience and high scores").
-2. The chatbot panel streams the query to the backend.
-
-### Step 14: Intent Classification & Context Injection
-1. The backend analyzes the query to determine intent (e.g., candidate lookup, job statistics, general questions).
-2. It queries MongoDB Atlas to retrieve matching records.
-3. The data is loaded into the prompt context and sent to Groq.
-4. Groq generates the response, which is streamed back to the frontend in real-time using **Server-Sent Events (SSE)**.
-
----
-
-## 7. Phase 6: Interview Setup & Scheduling
-
-### Step 15: Booking an Interview Slot
-1. Recruiter schedules a slot for a candidate in the portal.
-2. The backend validates MongoDB records to prevent timing conflicts.
-3. The interview details are saved to MongoDB.
-
-### Step 16: LiveKit Room Setup
-1. The backend calls the **LiveKit API** to dynamically create a secure video room.
-2. The system generates two distinct tokens:
-   * **Recruiter Token:** Moderator privileges (mute others, end call).
-   * **Candidate Token:** Guest privileges.
-3. The backend generates a secure interview invite link containing the room token.
-4. An email containing the link is sent to the candidate and recruiter via SMTP.
-5. The background scheduler (APScheduler) queues a reminder email to be sent 15 minutes before the start time.
-
----
-
-## 8. Phase 7: Video Interview & Proctoring
-
-### Step 17: Candidate Joins
-1. Candidate opens the link and grants camera and microphone permissions.
-2. The frontend establishes a direct WebRTC connection to the **LiveKit server** using native `<LiveKitRoom>` React components.
-
+### Step 4: Backend Processes the JD
+The backend receives the raw requirements text and sends it to the **Groq LLaMA-3.3-70b** model.
+Groq extracts and formats the text into a clean JSON structure:
+```json
+{
+  "required_skills": ["Python", "FastAPI", "MongoDB", "Docker"],
+  "experience": 5,
+  "education": "B.E",
+  "certifications": []
+}
 ```
-       Candidate Browser  <==== WebRTC ====>  LiveKit Cloud Server
-             |
-      MediaPipe Proctoring
-      (Eye Gaze & Focus check)
-             |
-             v
-      FastAPI Backend
+If Groq is offline, a local regex-driven fallback parser maps the job requirements to the Master Skill Dictionary.
+
+---
+
+### Step 5: Store JD
+Two actions happen simultaneously:
+1. **MongoDB:** Stores Job Title, Description, Required Skills, Experience, Recruiter ID, and Created Date.
+2. **FAISS:** The JD text is converted into a 384-dimensional vector embedding using the local `SentenceTransformers` model and synced into the local in-memory FAISS database to make the JD searchable semantically.
+
+---
+
+### Step 6: Recruiter Uploads Resume
+The recruiter uploads a PDF or Word resume. The frontend sends it to:
+```
+POST /resume/upload
 ```
 
-### Step 18: Client-Side AI Proctoring
-During the interview, the candidate's browser runs real-time proctoring metrics:
-* **MediaPipe FaceMesh:** Analyzes eye coordinates to count looks away from the screen and logs face presence (flagging multiple faces or if the candidate leaves).
-* **Visibility Listeners:** Tracks if the candidate switches browser tabs, leaves fullscreen mode, or performs copy/paste actions.
-* **Voice Activity Detection:** Tracks speaking ratios to evaluate conversational balance.
-* **Logging:** Any violation is logged to the backend database instantly.
+---
+
+### Step 7: Store Original Resume
+The backend immediately handles file storage:
+1. **Supabase Storage:** If keys are set in `.env`, the original PDF is uploaded directly to the `resumes` bucket in Supabase.
+2. **Local Fallback:** If keys are missing, it saves the PDF locally inside the `uploads/resumes/` folder on the laptop.
+3. **MongoDB:** Stores only the final URL reference and metadata.
+```
+Resume.pdf
+   ↓
+Supabase Storage (or Local Uploads Fallback)
+   ↓
+Public URL stored in MongoDB
+```
 
 ---
 
-## 9. Phase 8: Recording, Transcription, & Evaluation
+### Step 8: Extract Resume Text
+The backend reads the resume PDF or Word file using `PyMuPDF` or `mammoth` and extracts it into plain text.
 
-### Step 19: Audio Processing
-1. When the call ends, the audio file is stored in **Supabase Storage** (or local uploads folder).
-2. The backend sends the audio file to **Groq Whisper** (`whisper-large-v3-turbo`).
-3. Whisper returns a timestamped textual transcription.
+---
 
-### Step 20: AI Scorecard Compilation
-1. The backend compiles the transcript, proctoring violations list, speaking ratio, and score sheet.
-2. The data is sent to Groq.
-3. Groq generates an evaluation report covering:
-   * **Technical Proficiency:** Correctness of candidate answers.
-   * **Communication & Confidence:** Tone and speaking pace.
-   * **Integrity Rating:** Likelihood of cheating based on proctoring records.
-   * **Final Recommendation.**
-4. The backend generates a print-ready PDF using `ReportLab` and saves it to storage.
-5. The candidate status is updated in MongoDB, ready for the recruiter to review.
+### Step 9: Extract Candidate Details (Multi-Stage Cascade)
+1. **Stage 1 (Rule-Based):** Finds basic fields (Email, Phone, Dates) using regex.
+2. **Stage 2 (GLiNER):** Identifies Named Entities (Candidate Name, Location, Colleges, Companies).
+3. **Stage 3 (Groq LLM):** Groq reads the entire text and returns a structured JSON containing employment history, achievements, and soft skills.
+
+---
+
+### Step 10: Normalize Skills
+To prevent matching mismatches (e.g. `NodeJS` vs `Node.js`), the backend converts and standardizes skills using a dictionary:
+* `NodeJS` / `Node JS` → `node.js`
+* `ReactJS` / `React.js` → `react`
+* `JS` → `javascript`
+
+---
+
+### Step 11: Create Resume Embedding
+The candidate's normalized skills and resume text are sent to the local `SentenceTransformers` model (`all-MiniLM-L6-v2`) to produce a 384-dimensional vector, which is then synced to the local in-memory FAISS index.
+
+---
+
+### Step 12: Weighted Ranking Engine
+The backend compares the Job Description against the Candidate Resume across six distinct factors:
+
+* **Skills (40%):** Evaluates skills using exact matches, normalized alias matches, and fuzzy Levenshtein distance.
+* **Experience (25%):** Compares candidate years of experience against the job requirements.
+* **Semantic Matching (15%):** Compares the candidate vector against the job vector using **Cosine Similarity** in FAISS. This matches conceptual meanings (e.g., matching "AI Specialist" with "Machine learning engineer") instead of just looking for identical words.
+* **Projects (10%):** Scans the project descriptions for job-relevant technologies.
+* **Certifications (5%):** Verifies matching credentials (e.g. AWS, Azure, Google Cloud).
+* **Resume Quality (5%):** Checks for complete sections and profile details.
+
+---
+
+### Step 13: Final Score Calculation
+The backend calculates the sum of all parts:
+```
+40% (Skills) + 25% (Experience) + 15% (Semantic) + 10% (Projects) + 5% (Certifications) + 5% (Quality) = 100%
+```
+Deductions are applied if critical items are missing (e.g. **-20 points** if the candidate lacks >70% of required skills).
+
+---
+
+### Step 14: AI Explanation Generation
+The backend sends the computed score details to Groq. Groq compiles a natural language feedback report:
+* **Strengths:** Why the candidate is a match.
+* **Weaknesses/Concerns:** Key skill gaps.
+* **Verdict:** Hire, Hold, or Reject recommendation.
+
+---
+
+### Step 15: Store Candidate
+All compiled candidate metadata, computed scores, AI explanations, and Supabase/local file URLs are saved under the candidate's record in MongoDB.
+
+---
+
+### Step 16: Recruiter Reviews Candidate
+When the recruiter opens a candidate profile in the browser:
+1. Frontend fetches candidate data from MongoDB.
+2. Frontend loads the resume PDF directly from Supabase (or local storage).
+
+---
+
+### Step 17: Recruiter Schedules Interview
+The recruiter selects a date and time. The backend checks MongoDB to verify no scheduling conflicts exist. If free, it creates the interview session.
+
+---
+
+### Step 18: LiveKit Room Setup
+1. The backend makes an API call to the **LiveKit server** to create a secure conference room.
+2. It generates JWT access tokens for the recruiter (moderator status) and candidate (guest status).
+3. It constructs the secure invite link:
+   `{FRONTEND_URL}/candidate-interview/{token}`
+4. An invite email is sent automatically using SMTP. A background scheduler (APScheduler) triggers a reminder email 15 minutes before the call.
+
+---
+
+### Step 19: Candidate Joins Interview
+The candidate opens the invitation link. The backend verifies the token and allows them to connect natively to the LiveKit server using WebRTC and `<LiveKitRoom>` React components.
+
+---
+
+### Step 20: Real-Time Browser Proctoring
+During the interview call, the candidate's browser tracks compliance:
+* **MediaPipe FaceMesh:** Measures eye coordinates (checks if the candidate is looking away) and logs face counts (detects if multiple people are present or if the candidate leaves).
+* **Visibility Listeners:** Logs if the candidate switches tabs, leaves fullscreen mode, or tries to copy/paste.
+* **Voice Activity Detection:** Tracks speaking vs listening ratio.
+All events are sent immediately to the backend database.
+
+---
+
+### Step 21: Interview Completion & Transcription
+Once the call ends, the audio file is stored in Supabase. The backend sends the audio to **Groq Whisper** (`whisper-large-v3-turbo`) to generate a timestamped text transcript.
+
+---
+
+### Step 22: AI Evaluation
+The backend sends the transcript, metrics, and proctoring violations to Groq. Groq evaluates candidate response accuracy, communication confidence, and cheating indicators to generate a final interview scorecard. The backend compiles this into a downloadable PDF report.
+
+---
+
+### Step 23: Final Database Storage
+* **MongoDB:** Stores users, jobs, candidate profiles, proctoring events, and final scorecards.
+* **Supabase:** Stores original resume PDFs and audio interview recordings.
+* **FAISS:** Stores resume and job description vectors for semantic matching.
+
+---
+
+### One-Line Summary You Can Tell Your Lead:
+> "The backend acts as the brain of HireIQ: it handles secure authentication, parses job descriptions and resumes using Groq AI, saves structured records to MongoDB, uploads media assets to Supabase, generates semantic vectors in FAISS for intelligent matching, computes deterministic candidate scores, sets up secure LiveKit WebRTC interview rooms, captures real-time proctoring metrics, transcribes audio using Groq Whisper, and compiles final PDF candidate evaluation reports."
