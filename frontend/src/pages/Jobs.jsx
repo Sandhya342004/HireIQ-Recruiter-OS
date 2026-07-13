@@ -8,6 +8,7 @@ import { MdWork, MdAdd, MdPeople } from 'react-icons/md';
 export default function Jobs() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title:'', company:'', description:'', location:'', required_experience_years:0 });
 
@@ -21,13 +22,18 @@ export default function Jobs() {
 
   const createJob = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
       await API.post('/jobs/create', { ...form, required_experience_years: Number(form.required_experience_years) });
       toast.success('Job created!');
       setForm({ title:'', company:'', description:'', location:'', required_experience_years:0 });
       setShowForm(false);
       fetchJobs();
-    } catch { toast.error('Failed to create job'); }
+    } catch { 
+      toast.error('Failed to create job'); 
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const downloadReport = async (jobId, format) => {
@@ -100,8 +106,9 @@ export default function Jobs() {
                     placeholder="Full job description including required skills, responsibilities…"
                     value={form.description} onChange={e => setF('description', e.target.value)} />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ alignSelf:'flex-end' }}>
-                  Create Job
+                <button type="submit" className="btn btn-primary" style={{ alignSelf:'flex-end' }} disabled={submitting}>
+                  {submitting && <span className="spinner" style={{ marginRight: 8, borderTopColor: '#fff' }} />}
+                  {submitting ? 'Creating...' : 'Create Job'}
                 </button>
               </form>
             </div>

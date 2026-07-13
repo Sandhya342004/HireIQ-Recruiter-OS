@@ -389,7 +389,7 @@ def _embedding_match(token: str, threshold: float = 0.82) -> Optional[str]:
 #  Core normalization function
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def normalize_skill(raw: str) -> Optional[str]:
+def normalize_skill(raw: str, use_embeddings: bool = False) -> Optional[str]:
     """
     Normalize a single raw skill token to its canonical form.
 
@@ -426,7 +426,7 @@ def normalize_skill(raw: str) -> Optional[str]:
             return match[0]
 
     # 4. Embedding similarity (for unknown/novel skills)
-    if len(token) >= 3:
+    if use_embeddings and len(token) >= 3:
         em = _embedding_match(token)
         if em:
             return em
@@ -478,17 +478,17 @@ def extract_and_normalize_skills(text: str) -> List[str]:
     # Stage 2 — n-gram alias lookup
     words = re.findall(r"[a-z][a-z0-9.#+\-/]*", text_lower)
     for i, w in enumerate(words):
-        canon = normalize_skill(w)
+        canon = normalize_skill(w, use_embeddings=False)
         if canon:
             found.add(canon)
         if i + 1 < len(words):
             bigram = w + " " + words[i + 1]
-            canon = normalize_skill(bigram)
+            canon = normalize_skill(bigram, use_embeddings=False)
             if canon:
                 found.add(canon)
         if i + 2 < len(words):
             trigram = w + " " + words[i + 1] + " " + words[i + 2]
-            canon = normalize_skill(trigram)
+            canon = normalize_skill(trigram, use_embeddings=False)
             if canon:
                 found.add(canon)
 
@@ -518,7 +518,7 @@ def normalize_skill_list(skills: List[str]) -> List[str]:
     seen: set[str] = set()
     result = []
     for s in skills:
-        canon = normalize_skill(s)
+        canon = normalize_skill(s, use_embeddings=True)
         if canon and canon not in seen:
             seen.add(canon)
             result.append(canon)
