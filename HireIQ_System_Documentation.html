@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HireIQ Recruiter OS - Complete Technical & Cost Documentation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #4338ca;
+            --primary-light: #e0e7ff;
+            --secondary: #0f172a;
+            --accent: #10b981;
+            --text-main: #334155;
+            --text-dark: #0f172a;
+            --text-light: #64748b;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --radius: 12px;
+            --radius-sm: 6px;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 0;
+        }
+
+        header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: white;
+            padding: 60px 24px;
+            text-align: center;
+            border-bottom: 5px solid var(--primary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 80% 20%, rgba(79, 70, 229, 0.15) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .header-content {
+            max-width: 1000px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo-text {
+            font-size: 14px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #818cf8;
+            margin-bottom: 12px;
+        }
+
+        header h1 {
+            font-size: 38px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 16px;
+            line-height: 1.2;
+        }
+
+        header p {
+            font-size: 16px;
+            color: #94a3b8;
+            max-width: 600px;
+            margin: 0 auto;
+            font-weight: 400;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 0 24px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 30px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .tab-btn {
+            padding: 10px 18px;
+            background: none;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-light);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-dark);
+            background-color: var(--border);
+        }
+
+        .tab-btn.active {
+            color: white;
+            background-color: var(--primary);
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 32px;
+            margin-bottom: 30px;
+        }
+
+        .card-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 20px;
+            border-left: 5px solid var(--primary);
+            padding-left: 12px;
+            letter-spacing: -0.3px;
+        }
+
+        h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-top: 24px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            margin-bottom: 16px;
+        }
+
+        ul, ol {
+            margin-bottom: 20px;
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .cost-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .cost-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            background: #f8fafc;
+            border-top: 4px solid var(--primary);
+        }
+
+        .cost-card.free {
+            border-top-color: var(--accent);
+        }
+
+        .cost-title {
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cost-badge {
+            font-size: 11px;
+            background: var(--primary-light);
+            color: var(--primary);
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-weight: 600;
+        }
+
+        .cost-badge.free {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .cost-value {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        th {
+            background-color: var(--secondary);
+            color: white;
+            text-align: left;
+            padding: 12px;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+
+        pre {
+            background-color: #0f172a;
+            color: #f1f5f9;
+            padding: 16px;
+            border-radius: var(--radius-sm);
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+
+        code {
+            background-color: #f1f5f9;
+            color: #ef4444;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+
+        pre code {
+            background-color: transparent;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        .highlight-box {
+            background-color: #f0f9ff;
+            border-left: 4px solid #0284c7;
+            padding: 16px;
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            margin-bottom: 20px;
+        }
+
+        .highlight-box.warning {
+            background-color: #fffbeb;
+            border-left-color: #d97706;
+        }
+
+        .highlight-box-title {
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .step-list {
+            list-style: none;
+            position: relative;
+            padding-left: 36px;
+        }
+
+        .step-list li {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .step-list li::before {
+            content: '';
+            position: absolute;
+            left: -26px;
+            top: 24px;
+            bottom: -22px;
+            width: 2px;
+            background-color: var(--border);
+        }
+
+        .step-list li:last-child::before {
+            display: none;
+        }
+
+        .step-number {
+            position: absolute;
+            left: -37px;
+            top: 0;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .step-title {
+            font-weight: 700;
+            color: var(--text-dark);
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        footer {
+            background-color: var(--secondary);
+            color: #94a3b8;
+            padding: 40px 24px;
+            text-align: center;
+            font-size: 13px;
+            border-top: 1px solid #1e293b;
+            margin-top: 60px;
+        }
+
+        footer a {
+            color: #818cf8;
+            text-decoration: none;
+        }
+        
+        .diagram {
+            text-align: center;
+            margin: 30px 0;
+            background: #0f172a;
+            padding: 24px;
+            border-radius: var(--radius);
+            border: 1px solid #334155;
+        }
+        
+        .diagram pre {
+            border: none;
+            margin-bottom: 0;
+            padding: 0;
+            display: inline-block;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <div class="logo-text">HireIQ Recruiter OS</div>
+            <h1>Complete Technical & Cost Reference Manual</h1>
+            <p>A comprehensive operations guide covering system flows, technical architecture, and free-tier processing capacity.</p>
+        </div>
+    </header>
+
+    <div class="container">
+        
+        <!-- SECTION 1: SYSTEM OVERVIEW & STACK -->
+        <div class="card" id="overview">
+            <h2 class="card-title">1. System Overview & Technology Stack</h2>
+            <p>
+                HireIQ Recruiter OS is an enterprise-grade AI-powered applicant tracking and screening system. It automates the end-to-end recruitment process: parsing job descriptions, parsing uploaded resumes, computing compatibility scores using a multi-factor hybrid heuristic engine, and running automated video interviews with real-time browser-based AI proctoring and automated transcription and analysis.
+            </p>
+            
+            <h3>Core Technology Stack</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Layer / Component</th>
+                        <th style="width: 35%">Technology Selected</th>
+                        <th style="width: 40%">Operational Reason & Advantage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Frontend</strong></td>
+                        <td>React 18 + Vite</td>
+                        <td>Provides a fast Single Page Application (SPA) experience with custom Vanilla CSS controls and responsive viewports.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Backend API</strong></td>
+                        <td>FastAPI (Python 3.10+)</td>
+                        <td>High-performance, async-native framework. Automatically generates OpenAPI/Swagger schemas.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Primary Database</strong></td>
+                        <td>MongoDB Atlas (Cloud)</td>
+                        <td>Document database matching the highly nested, flexible structure of parsed candidate resumes and interview metrics.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cloud Storage</strong></td>
+                        <td>Supabase Storage (with Local Fallback)</td>
+                        <td>Primary provider for secure cloud storage of resume documents and interview audio recordings. Automatically falls back to local storage if keys are not configured.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Large Language Model (LLM)</strong></td>
+                        <td>Groq Cloud (LLaMA-3.3-70b)</td>
+                        <td>Sub-second completion speeds for structuring unstructured resume/JD text, generating summaries and interview insights.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Speech-to-Text (STT)</strong></td>
+                        <td>Groq Whisper (large-v3-turbo)</td>
+                        <td>Ultra-fast transcript generation from audio recordings recorded during interview calls.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Vector Database</strong></td>
+                        <td>FAISS (Facebook AI Similarity Search)</td>
+                        <td>In-memory index enabling instant semantic cosine-distance calculations without cloud API roundtrips.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Embeddings Engine</strong></td>
+                        <td>SentenceTransformers (Local)</td>
+                        <td>Generates 384-dimensional dense vector embeddings locally on the CPU at zero cost. Model: <code>all-MiniLM-L6-v2</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Real-time Proctoring</strong></td>
+                        <td>MediaPipe FaceMesh (Client-side)</td>
+                        <td>Runs real-time facial feature tracking, gaze detection, and attention measurement in the candidate's browser.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Video Conferencing</strong></td>
+                        <td>LiveKit Cloud/Self-Hosted (Native Integration)</td>
+                        <td>Modern, high-quality WebRTC infrastructure. Features server-managed access tokens and native client views.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Communications</strong></td>
+                        <td>SMTP Protocol (Gmail)</td>
+                        <td>Sends scheduled reminder notifications and interview invitation links directly to recruiters and candidates.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SECTION 2: COST ESTIMATION & FREE CAPACITY -->
+        <div class="card" id="costs">
+            <h2 class="card-title">2. Operating Cost Estimation & Free-Tier Capacity</h2>
+            <p>
+                HireIQ Recruiter OS is built to run on a <strong>"zero-dollar development & small business scale"</strong>. By combining local open-source ML models with generous cloud developer limits, you do not pay anything for standard usage.
+            </p>
+
+            <div class="cost-grid">
+                <div class="cost-card free">
+                    <div class="cost-title">Groq Cloud API <span class="cost-badge free">Free Tier</span></div>
+                    <div class="cost-value">$0.00 / month</div>
+                    <p style="font-size: 13px;">
+                        Provides free access to LLaMA-3.3-70b and Whisper models. Limits are rate-based: 100,000 requests per day (RPD) and 180,000 tokens per minute (TPM).
+                    </p>
+                </div>
+                <div class="cost-card free">
+                    <div class="cost-title">MongoDB Atlas (M0) <span class="cost-badge free">Free Tier</span></div>
+                    <div class="cost-value">$0.00 / month</div>
+                    <p style="font-size: 13px;">
+                        Provides 512 MB of cloud storage. Adequate for storing thousands of parsed resumes, metadata structures, and interview records.
+                    </p>
+                </div>
+                <div class="cost-card free">
+                    <div class="cost-title">Supabase Storage <span class="cost-badge free">Free Tier</span></div>
+                    <div class="cost-value">$0.00 / month</div>
+                    <p style="font-size: 13px;">
+                        Provides 1 GB of free storage. Adequate for thousands of resumes and audio files. Works seamlessly with zero-cost local folder fallback.
+                    </p>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 30px;">How Many Resumes Can I Parse Monthly Without Paying?</h3>
+            <p>
+                The primary limiting factor in the free stack is the <strong>MongoDB Atlas M0 Free Tier (512 MB storage)</strong>. Let's calculate the exact capacity:
+            </p>
+            <ul>
+                <li><strong>Average Candidate Document Size:</strong> 15 KB (includes raw text snippet, parsed fields, computed metrics, AI summary narrative, and activity logs).</li>
+                <li><strong>Calculation:</strong> <code>512 MB * 1024 KB/MB / 15 KB = 34,952 Candidates</code>.</li>
+                <li><strong>Groq API Capacity:</strong> With a limit of 100,000 requests per day, the Groq API can handle 3,000,000 resume parses/chatbot operations per month.</li>
+            </ul>
+            
+            <div class="highlight-box">
+                <div class="highlight-box-title">Verdict: Free Processing Capacity</div>
+                You can parse and store <strong>up to 25,000 - 30,000 resumes</strong> in your system without paying a single dollar. If you reach this limit, you can simply clean up old jobs/candidates to free up space or upgrade MongoDB Atlas (starting at $9/month).
+            </div>
+
+            <h3>Commercial Scale Costs (If Exceeding Free Tiers)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Resource</th>
+                        <th>Pricing Model</th>
+                        <th>Unit Rate</th>
+                        <th>Cost for 10,000 Resumes (Over Limit)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Groq LLaMA-3.3-70b</strong></td>
+                        <td>Pay-per-token usage</td>
+                        <td>$0.59 / million input tokens<br>$0.79 / million output tokens</td>
+                        <td>~$5.00 total (assuming average 600 words per resume)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Groq Whisper</strong></td>
+                        <td>Pay-per-minute audio</td>
+                        <td>$0.03 / hour of audio</td>
+                        <td>~$5.00 total (assuming 10-minute screening interviews)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>MongoDB Atlas</strong></td>
+                        <td>Shared instance / serverless</td>
+                        <td>$9.00 / month (2 GB shared)</td>
+                        <td>$9.00 / month flat rate</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Supabase Storage</strong></td>
+                        <td>Database storage / pay-per-GB</td>
+                        <td>$0.021 / GB of stored data</td>
+                        <td>~$0.50 total (assuming ~200 KB per original PDF)</td>
+                    </tr>
+                    <tr style="font-weight: 700;">
+                        <td>Total Scale Cost</td>
+                        <td>Variable</td>
+                        <td>-</td>
+                        <td><strong>~$19.50 total</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SECTION 3: SYSTEM ARCHITECTURE -->
+        <div class="card" id="architecture">
+            <h2 class="card-title">3. System Architecture</h2>
+            <p>
+                HireIQ uses a decoupled, client-server service-oriented architecture. The React frontend interacts with the FastAPI backend through JSON APIs and Server-Sent Events (SSE). 
+            </p>
+            
+            <div class="diagram">
+                <pre style="background: transparent; border: none; color: #a5b4fc; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.4;">
+                +-----------------------------------------------------------+
+                |                    React 18 Frontend                      |
+                | - SPA Dashboard (Jobs, Candidates, Workspace)             |
+                | - Real-time Interview Proctoring (MediaPipe Gaze, LiveKit)|
+                +-----------------------------+-----------------------------+
+                                              |
+                                              | HTTPS / WebSockets / SSE
+                                              v
+                +-----------------------------------------------------------+
+                |                    FastAPI Backend                        |
+                | - Endpoint Routing (Auth, Jobs, Candidates, Interviews)   |
+                | - Scheduler Daemon (APScheduler Reminders)                |
+                +----+-------------------+--------------------+-------------+
+                     |                   |                    |
+                     | Local/In-Memory   | HTTPS API Requests | MongoDB URI
+                     v                   v                    v
+        +------------+-------+   +-------+------------+   +---+-------------+
+        |   AI Search Layer  |   |   Cloud AI Layer   |   | Database Layer  |
+        | - SentenceTrans.   |   | - Groq LLaMA-3.3   |   | - MongoDB Atlas |
+        | - FAISS Flat Index |   | - Groq Whisper STT |   |   (Candidates &  |
+        |   (faiss_index.bin)|   | - Supabase Storage |   |   Jobs schemas) |
+        +--------------------+   +--------------------+   +-----------------+
+                </pre>
+            </div>
+
+            <h3>Core Data Schemas (MongoDB Atlas)</h3>
+            <p>The system stores information in three major collections:</p>
+            
+            <h4>1. Jobs Collection (<code>jobs</code>)</h4>
+            <pre>{
+  "_id": "ObjectId",
+  "title": "Lead Software Engineer",
+  "company": "Tech Corp",
+  "location": "Bangalore",
+  "description": "...",
+  "required_experience_years": 5.0,
+  "required_skills": ["python", "fastapi", "postgresql"],
+  "preferred_skills": ["docker", "aws"],
+  "candidate_count": 12,
+  "created_at": "ISODate",
+  "created_by": "ObjectId"
+}</pre>
+
+            <h4>2. Candidates Collection (<code>candidates</code>)</h4>
+            <pre>{
+  "_id": "ObjectId",
+  "job_id": "ObjectId",
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone": "+919876543210",
+  "total_experience_years": 6.5,
+  "technical_skills": ["python", "javascript", "react"],
+  "score": 82.5,
+  "skill_score": 90.0,
+  "experience_score": 85.0,
+  "semantic_score": 75.0,
+  "matched_skills": ["python"],
+  "missing_skills": ["fastapi", "postgresql"],
+  "bonus_skills": ["react"],
+  "hiring_summary": {
+    "verdict": "Hire",
+    "reasoning": "...",
+    "strengths": ["...", "..."],
+    "weaknesses": ["..."]
+  },
+  "interview": {
+    "date": "2026-07-15",
+    "time": "14:00",
+    "meeting_link": "wss://livekit.yourdomain.com",
+    "secure_token": "a1b2c3d4...",
+    "status": "Scheduled"
+  },
+  "ai_analysis": {
+    "recommendation": "Strong Hire",
+    "verdict": "...",
+    "metrics": {
+      "eye_contact": 88.0,
+      "attention_score": 95.0,
+      "risk_score": 5.0
+    }
+  }
+}</pre>
+        </div>
+
+        <!-- SECTION 4: STEP-BY-STEP SYSTEM FLOWS -->
+        <div class="card" id="flows">
+            <h2 class="card-title">4. Core System Flows (Step-by-Step)</h2>
+            
+            <ol class="step-list">
+                <li>
+                    <span class="step-number">1</span>
+                    <div class="step-title">Authentication & Access Control Flow</div>
+                    <p>
+                        Secure onboarding and session management for recruiters.
+                    </p>
+                    <ul>
+                        <li><strong>Registration:</strong> Recruiter inputs name, email, and password. The password is hashed using <code>bcrypt</code> (with salt) and stored in the <code>users</code> collection.</li>
+                        <li><strong>Login:</strong> Recruiter submits credentials. The system compares the hashed password. Upon validation, a JWT token containing the user identity is generated using <code>python-jose</code>, signed with a secret key, and returned.</li>
+                        <li><strong>Session Management:</strong> The token is saved in the browser's <code>localStorage</code>. Axios request interceptors automatically append this JWT to the <code>Authorization: Bearer &lt;token&gt;</code> header on all backend requests.</li>
+                    </ul>
+                </li>
+
+                <li>
+                    <span class="step-number">2</span>
+                    <div class="step-title">Job Creation & Parsing Flow</div>
+                    <p>
+                        Extracts requirements from plain job descriptions to construct scoring profiles.
+                    </p>
+                    <ul>
+                        <li><strong>Input:</strong> Recruiter types or pastes a job description in the frontend portal.</li>
+                        <li><strong>API Request:</strong> Triggers <code>POST /jobs/create</code> with the raw details.</li>
+                        <li><strong>LLM Extraction:</strong> The backend sends the text to the Groq LLaMA-3.3 model using a strict JSON format prompt. The LLM extracts: role, required skills, preferred skills, minimum experience, and required certifications.</li>
+                        <li><strong>Fast Fallback:</strong> If the Groq API key is missing or the request fails, a local keyword parser scans the text using precompiled regex models and RapidFuzz to map matches to the system's Master Skill Dictionary.</li>
+                    </ul>
+                </li>
+
+                <li>
+                    <span class="step-number">3</span>
+                    <div class="step-title">Resume Upload & Parsing Cascade</div>
+                    <p>
+                        A hybrid approach combining local rule-based structures, cloud storage, and LLM validation to parse resumes.
+                    </p>
+                    <ul>
+                        <li><strong>Extraction:</strong> Resumes (PDF or Word) are uploaded. The raw text is extracted using <code>PyPDF2</code> (PDFs) or <code>mammoth</code> (Word documents).</li>
+                        <li><strong>Local Cascade Rules:</strong> The local parser extracts metadata (e.g. Email via Regex, Name via Entity Extraction heuristics, Experience via date ranges in the work history).</li>
+                        <li><strong>Cloud Storage:</strong> The file is uploaded to <strong>Supabase Storage</strong> if credentials (`SUPABASE_URL` and `SUPABASE_SERVICE_KEY`) are set in the `.env` file. If they are missing, it falls back to saving files locally in `uploads/resumes/`.</li>
+                        <li><strong>LLM Validation:</strong> The text is packaged and sent to the Groq API. The LLM acts as a correction layer, extracting structural timelines, list of soft skills, projects, and certifications.</li>
+                        <li><strong>Vector Sync:</strong> The candidate document (including Supabase public URL or local upload file path) is saved to MongoDB. In parallel, the raw text is transformed into a 384-dimensional vector embedding using the local <code>SentenceTransformer</code> model and stored in the in-memory <code>FAISS</code> index.</li>
+                    </ul>
+                </li>
+
+                <li>
+                    <span class="step-number">4</span>
+                    <div class="step-title">Weighted Scoring & Ranking Engine</div>
+                    <p>
+                        A deterministic math engine ranks candidates. Groq is <strong>never</strong> asked to compute the score (protecting against math inaccuracies and hallucinations).
+                    </p>
+                    <ul>
+                        <li><strong>Formula Composition:</strong> The total score is computed out of 100%:
+                            <ul>
+                                <li><strong>Skills Match (40%):</strong> Compares candidate skills to job requirements using exact matching, alias mapping (e.g. JS -> JavaScript), and fast RapidFuzz Levenshtein matching.</li>
+                                <li><strong>Experience Match (25%):</strong> Evaluates years of experience compared to requirements.</li>
+                                <li><strong>Semantic Similarity (15%):</strong> Measures cosine distance between the job embedding and candidate resume embedding inside FAISS.</li>
+                                <li><strong>Projects & Certifications (15%):</strong> Checks for matching keywords in projects and certifications.</li>
+                                <li><strong>Quality Index (5%):</strong> Evaluates profile completeness.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Hard Penalties:</strong> Triggers deduction scores for major gaps (e.g. -20 points if >70% of required skills are missing; -10 points if total experience is less than half of the requirement).</li>
+                    </ul>
+                </li>
+
+                <li>
+                    <span class="step-number">5</span>
+                    <div class="step-title">AI Narrative Feedback Generation</div>
+                    <p>
+                        Translates mathematical evaluation scores into human-readable recruiter notes.
+                    </p>
+                    <ul>
+                        <li><strong>Prompt Structuring:</strong> The backend formats a structured prompt containing the computed scores and key statistics, sending it to Groq LLaMA-3.3.</li>
+                        <li><strong>Output:</strong> Groq generates an executive summary, highlights core strengths, points out potential concerns or risks, and recommends hiring verdicts (Hire / Hold / Reject) matching the score thresholds.</li>
+                    </ul>
+                </li>
+
+                <li>
+                    <span class="step-number">6</span>
+                    <div class="step-title">Recruiter Copilot (Chatbot) Flow</div>
+                    <p>
+                        A conversational interface to query candidate data.
+                    </p>
+                    <ul>
+                        <li><strong>Input:</strong> Recruiter asks a question (e.g. "Who has React experience and more than 5 years of work history?").</li>
+                        <li><strong>Intent Analysis:</strong> The backend parses the query to determine if the user is asking about candidates, general details, or job profiles.</li>
+                        <li><strong>Context Injection:</strong> The system fetches matching records from MongoDB and injects them into the LLM system prompt.</li>
+                        <li><strong>SSE Streaming:</strong> The backend streams responses in real-time from the Groq API to the frontend using Server-Sent Events (SSE) for a fluid chat experience.</li>
+                    </ul>
+                </li>
+
+                <li>
+                    <span class="step-number">7</span>
+                    <div class="step-title">Interview Scheduling & Notification</div>
+                    <p>
+                        Automated coordination and room setup for video interviews.
+                    </p>
+                    <ul>
+                        <li><strong>Scheduling:</strong> The recruiter picks a date and time. The backend checks for timing conflicts.</li>
+                        <li><strong>LiveKit Room & Token:</strong> Calls `create_room` on LiveKit Cloud API. Generates a secure participant JWT token via `generate_recruiter_token` (room moderator status) and `generate_candidate_token` (restricted guest status).</li>
+                        <li><strong>Link Generation:</strong> A unique candidate join link is built: <code>{FRONTEND_URL}/candidate-interview/{token}</code>.</li>
+                        <li><strong>Email Dispatch:</strong> An SMTP routine sends invite emails to the candidate and recruiter. A background scheduler (APScheduler) queues a reminder email to be sent 15 minutes before the call.</li>
+                    </ul>
+                </li>
+
+                <li>
+                    <span class="step-number">8</span>
+                    <div class="step-title">Interview Session & AI Proctoring Flow</div>
+                    <p>
+                        Protects interview integrity using local browser-based tracking and LiveKit components.
+                    </p>
+                    <ul>
+                        <li><strong>Token Verification:</strong> The candidate clicks the link, the frontend verifies the secure token, fetches the candidate JWT token, and connects natively to the LiveKit Cloud session using <code>&lt;LiveKitRoom&gt;</code>.</li>
+                        <li><strong>MediaPipe Proctoring:</strong> The candidate's camera feed is analyzed in the browser. MediaPipe FaceMesh calculates eye vector directions (tracking if the candidate looks away from the screen) and counts face presence.</li>
+                        <li><strong>Activity Tracking:</strong> JavaScript listeners track page visibility changes (tab switching) and clipboard copy-paste events. Violations are logged to the backend immediately.</li>
+                        <li><strong>Voice Detection:</strong> WebRTC Voice Activity Detection (VAD) monitors candidate voice levels to calculate speaking/listening ratios.</li>
+                    </ul>
+                </li>
+
+                <li>
+                    <span class="step-number">9</span>
+                    <div class="step-title">Transcription & Automated Analysis Flow</div>
+                    <p>
+                        Generates a performance review report once the interview ends.
+                    </p>
+                    <ul>
+                        <li><strong>Speech-to-Text:</strong> Once the call completes, the recorded audio tracks are transmitted to Groq Whisper for transcription.</li>
+                        <li><strong>Heuristic Metric Compilation:</strong> The backend compiles metrics (e.g. eye contact percentage, speaking ratio, tab switch violations, filler word count).</li>
+                        <li><strong>Report Generation:</strong> The transcript and metrics are sent to Groq LLaMA-3.3 to compile a structured review card covering technical answers, communication skills, confidence, and cheating indicators.</li>
+                        <li><strong>PDF Builder:</strong> The database updates. A report template generates a downloadable, print-ready PDF using ReportLab.</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+
+    </div>
+
+    <footer>
+        <p>HireIQ Recruiter OS - Technical Documentation. Built for modern recruitment automation.</p>
+    </footer>
+
+</body>
+</html>
