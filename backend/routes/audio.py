@@ -87,7 +87,11 @@ async def upload_audio_chunk(
                 "transcripts": [],
             }
 
-        new_chunks = await transcribe_audio_file(content, file_ext=".webm", offset_seconds=offset_seconds)
+        new_chunks = []
+        try:
+            new_chunks = await transcribe_audio_file(content, file_ext=".webm", offset_seconds=offset_seconds)
+        except Exception as trans_err:
+            print(f"[Transcription Warning] Failed to transcribe audio chunk: {trans_err}")
 
     except Exception as e:
         print(f"[Audio Upload Error] {e}")

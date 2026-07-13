@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import API from '../api/client';
+import { useLocalParticipant } from '@livekit/components-react';
 
 export default function InterviewMonitor({ candidateId, onStop }) {
   const videoRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   
+  const { cameraTrack, microphoneTrack } = useLocalParticipant();
+
   const statsRef = useRef({
     looking_away_count: 0,
     no_face_count: 0,
@@ -19,24 +22,36 @@ export default function InterviewMonitor({ candidateId, onStop }) {
   const [riskAlert, setRiskAlert] = useState(null);
 
   useEffect(() => {
+    const videoTrack = cameraTrack?.track;
+    const audioTrack = microphoneTrack?.track;
+
+    if (!videoTrack || !audioTrack) {
+      setStatus('Waiting for video/audio streams...');
+      return;
+    }
+
     let stream = null;
     let statInterval = null;
     let audioInterval = null;
     let audioContext = null;
     let analyser = null;
     let faceMesh = null;
-    let camera = null;
     let lastInference = 0;
     const INFERENCE_THROTTLE_MS = 200; // ~5 FPS for CPU efficiency
+    let active = true;
+    let animationFrameId = null;
 
     const startMonitoring = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        // Video-only stream for face mesh rendering
+        const videoOnlyStream = new MediaStream();
+        if (videoTrack.mediaStreamTrack) {
+          videoOnlyStream.addTrack(videoTrack.mediaStreamTrack);
         }
 
-        // --- Event Listeners for Cheating Detection (Managed by parent CandidateInterview page) ---
+        if (videoRef.current) {
+          videoRef.current.srcObject = videoOnlyStream;
+        }
 
         // --- Audio Recording (Chunks every 10s with valid WebM/fallback headers) ---
         try {
@@ -51,7 +66,13 @@ export default function InterviewMonitor({ candidateId, onStop }) {
             }
           }
           
-          mediaRecorderRef.current = new MediaRecorder(stream, options);
+          // Audio-only stream for recording to prevent container compatibility exceptions
+          const audioOnlyStream = new MediaStream();
+          if (audioTrack.mediaStreamTrack) {
+            audioOnlyStream.addTrack(audioTrack.mediaStreamTrack);
+          }
+          
+          mediaRecorderRef.current = new MediaRecorder(audioOnlyStream, options);
           mediaRecorderRef.current.ondataavailable = async (e) => {
             if (e.data && e.data.size > 0) {
               const formData = new FormData();
@@ -87,6 +108,7 @@ export default function InterviewMonitor({ candidateId, onStop }) {
         
         let silenceStart = null;
         const checkSilence = () => {
+          if (!active || !analyser) return;
           analyser.getByteFrequencyData(dataArray);
           const volume = dataArray.reduce((a, b) => a + b) / dataArray.length;
           
@@ -101,7 +123,7 @@ export default function InterviewMonitor({ candidateId, onStop }) {
           } else {
              silenceStart = null;
           }
-          if (audioContext.state !== 'closed') requestAnimationFrame(checkSilence);
+          if (audioContext && audioContext.state !== 'closed') requestAnimationFrame(checkSilence);
         };
         checkSilence();
 
@@ -250,7 +272,7 @@ export default function InterviewMonitor({ candidateId, onStop }) {
               }
             }
 
-            // Talking (Mouth Open) Detection
+            // Talk Detection
             const lipTop = landmarks[13];
             const lipBottom = landmarks[14];
             if (lipTop && lipBottom && eyeDist > 0) {
@@ -261,7 +283,7 @@ export default function InterviewMonitor({ candidateId, onStop }) {
               }
             }
 
-            // Eyebrow Raised (Expressiveness / Surprise / Focus)
+            // Eyebrow Raised
             const eyebrowLeft = landmarks[70];
             const eyeLeftUpper = landmarks[159];
             if (eyebrowLeft && eyeLeftUpper && eyeDist > 0) {
@@ -274,21 +296,24 @@ export default function InterviewMonitor({ candidateId, onStop }) {
           }
         });
 
-        camera = new window.Camera(videoRef.current, {
-          onFrame: async () => {
-            if (!videoRef.current || !faceMesh) return;
-            
+        // Loop to send frames to faceMesh
+        const processFrame = async () => {
+          if (!active) return;
+          if (videoRef.current && videoRef.current.readyState >= 2 && !videoRef.current.paused) {
             const now = Date.now();
-            if (now - lastInference < INFERENCE_THROTTLE_MS) return;
-            
-            lastInference = now;
-            await faceMesh.send({image: videoRef.current});
-          },
-          width: 320,
-          height: 240
-        });
-        camera.start();
-
+            if (now - lastInference >= INFERENCE_THROTTLE_MS) {
+              lastInference = now;
+              try {
+                await faceMesh.send({ image: videoRef.current });
+              } catch (err) {
+                console.error("FaceMesh send error:", err);
+              }
+            }
+          }
+          animationFrameId = requestAnimationFrame(processFrame);
+        };
+        
+        processFrame();
         setStatus('Monitoring Active');
 
         // --- Stat reporting every 5s ---
@@ -326,19 +351,17 @@ export default function InterviewMonitor({ candidateId, onStop }) {
     startMonitoring();
 
     return () => {
+      active = false;
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
       clearInterval(statInterval);
       clearInterval(audioInterval);
-      if (camera) camera.stop();
       if (faceMesh) faceMesh.close();
       if (audioContext) audioContext.close();
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-      }
     };
-  }, [candidateId]);
+  }, [candidateId, cameraTrack, microphoneTrack]);
 
   return (
     <div style={{ padding: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, display: 'flex', gap: 16, alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>

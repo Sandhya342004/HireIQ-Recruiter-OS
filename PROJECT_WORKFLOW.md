@@ -187,15 +187,14 @@ Displays ranked candidates per job with:
 **Flow:**
 1. Recruiter clicks "Schedule Interview" → `POST /interviews/schedule`
 2. Time-slot conflict check against existing bookings
-3. Jitsi room generated: `https://meet.jit.si/interview-{candidate_id}-{random_id}`
+3. LiveKit room created dynamically via backend livekit-api
 4. Secure token generated: `uuid.uuid4().hex`
 5. **Candidate join URL built from `FRONTEND_URL` env var** (never localhost-hardcoded):
    ```
    {FRONTEND_URL}/candidate-interview/{secure_token}
    ```
 6. Interview data saved to `candidates.interview` subdocument
-7. HR confirmation email sent via SMTP
-8. APScheduler schedules a 15-minute reminder email
+7. HR confirmation notification sent via UI (Manual link sharing)
 
 **Key:** `FRONTEND_URL` in `backend/.env` must be set to a reachable URL for external candidates.
 
@@ -205,7 +204,7 @@ Displays ranked candidates per job with:
 
 1. Candidate opens link: `{FRONTEND_URL}/candidate-interview/{token}`
 2. `CandidateInterview.jsx` validates token → `GET /interviews/validate-token/{token}`
-3. Backend returns interview details (job role, time, Jitsi room link)
+3. Backend returns interview details (job role, time, LiveKit room details)
 4. Candidate enters their name → joins the session
 5. Camera/mic activated, proctoring starts
 
@@ -262,7 +261,7 @@ Displays ranked candidates per job with:
 | **JWT (python-jose)** | Auth tokens | Stateless, standard, integrates cleanly with FastAPI |
 | **APScheduler** | Background jobs | Interview reminders, vector sync tasks |
 | **SMTP / Gmail** | Email delivery | Simple setup; production can swap to SendGrid |
-| **Jitsi Meet** | Video conferencing | No account required, free, embeddable |
+| **LiveKit** | Video conferencing | Secure, low latency, native WebRTC components |
 | **spaCy** | NER for name/location | Accurate entity extraction as fallback |
 | **rapidfuzz** | Fuzzy skill matching | Fast Levenshtein for handling typos in skills |
 | **bcrypt** | Password hashing | Industry standard, slow by design |

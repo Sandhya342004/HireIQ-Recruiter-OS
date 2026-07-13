@@ -792,7 +792,7 @@ export default function CandidateProfile() {
                 <div style={{textAlign:'center',padding:32,color:'#94a3b8'}}>
                   <div style={{fontSize:32,marginBottom:8}}>🎥</div>
                   <div style={{fontSize:13,fontWeight:600,color:'#1e293b',marginBottom:4}}>No interviews scheduled yet</div>
-                  <p style={{fontSize:12,marginBottom:12}}>Schedule an interview to generate a Jitsi meet room and coordinate with the recruiter.</p>
+                  <p style={{fontSize:12,marginBottom:12}}>Schedule an interview to generate a secure LiveKit meet room and coordinate with the recruiter.</p>
                   <button className="cp-footer-btn primary" style={{margin:'0 auto'}} onClick={()=>setShowInterview(true)}> Schedule Now</button>
                 </div>
               )}

@@ -38,8 +38,9 @@ async def schedule_interview(
 ):
     candidate_id = interview.candidate_id
     
-    # Check if there is already an interview scheduled at the same date and time
+    # Check if there is already another candidate scheduled at the same date and time
     existing_booking = await candidates_col.find_one({
+        "_id": {"$ne": ObjectId(candidate_id)},
         "interview.date": interview.date,
         "interview.time": interview.time,
         "interview.status": "scheduled"
@@ -54,8 +55,15 @@ async def schedule_interview(
     import random
     random_id = random.randint(10000000, 99999999)
     room_name = f"interview-{candidate_id}-{random_id}"
-    jitsi_domain = os.getenv("JITSI_DOMAIN", "meet.jit.si")
-    meeting_link = f"https://{jitsi_domain}/{room_name}"
+    
+    # Create LiveKit room
+    from services.livekit_service import create_room, is_livekit_configured
+    livekit_url = os.getenv("LIVEKIT_URL", "")
+    if is_livekit_configured():
+        try:
+            await create_room(room_name, empty_timeout=3600, max_participants=2)
+        except Exception as lk_e:
+            print(f"[Interview] LiveKit room pre-create warning: {lk_e} — will auto-create on join.")
     
     from services.email_service import send_email, get_interview_scheduled_template
     from database import jobs_col
@@ -79,8 +87,10 @@ async def schedule_interview(
     candidate_join_url = f"{frontend_url}/candidate-interview/{secure_token}"
 
     interview_data["secure_token"] = secure_token
-    interview_data["meeting_link"] = meeting_link
+    interview_data["livekit_room"] = room_name
+    interview_data["livekit_url"] = livekit_url
     interview_data["candidate_join_url"] = candidate_join_url
+    interview_data["meeting_link"] = candidate_join_url
     interview_data["status"] = "scheduled"
     interview_data["scheduled_at"] = datetime.now(timezone.utc)
     interview_data["scheduled_by"] = current_user.get("email")
@@ -148,7 +158,7 @@ async def schedule_interview(
                 <p style="margin:5px 0;"><b>Role:</b> {job_role}</p>
                 <p style="margin:5px 0;"><b>Interview Date:</b> {interview.date}</p>
                 <p style="margin:5px 0;"><b>Interview Time:</b> {interview.time}</p>
-                <p style="margin:5px 0;"><b>Meeting Link:</b> <a href="{meeting_link}">{meeting_link}</a></p>
+                <p style="margin:5px 0;"><b>Candidate Interview Link:</b> <a href="{candidate_join_url}">{candidate_join_url}</a></p>
                 <p style="margin:5px 0;"><b>AI Match Score:</b> {c_score}%</p>
                 <p style="margin:5px 0;"><b>Top Skills:</b> {c_skills}</p>
             </div>
@@ -156,6 +166,7 @@ async def schedule_interview(
             <p><b>AI Summary:</b><br/>{c_summary}</p>
             
             <hr style="margin-top:20px; border:none; border-top: 1px solid #e2e8f0;">
+            <p style="font-size: 12px; color: #64748b;">Please copy the candidate interview link from your HireIQ dashboard and share it directly with the candidate via email, WhatsApp, or your preferred channel.</p>
             <p style="font-size: 12px; color: #64748b;">A reminder will be sent to you 15 minutes before the start time.</p>
         </div>
         """
@@ -164,7 +175,7 @@ async def schedule_interview(
         hr_email = current_user.get("email")
         subject = f"Interview Scheduled — {candidate['name']} | {job_role}"
         
-        print(f"[SCHEDULE_INTERVIEW] Calling send_email() → {hr_email}")
+        print(f"[SCHEDULE_INTERVIEW] Calling send_email() -> {hr_email}")
         try:
             success = await send_email(hr_email, subject, hr_html)
             print(f"[SCHEDULE_INTERVIEW] send_email() result: {success}")
@@ -178,9 +189,9 @@ async def schedule_interview(
 
     return {
         "message": "Interview scheduled successfully",
-        "meeting_link": meeting_link,
         "candidate_join_url": candidate_join_url,
         "secure_token": secure_token,
+        "livekit_room": room_name,
     }
 
 @router.post("/feedback")
@@ -354,7 +365,7 @@ async def get_live_proctoring(candidate_id: str, current_user=Depends(get_curren
         "interviewer": round((total_interviewer_words / total_words) * 100, 1) if total_words > 0 else 50.0
     }
 
-    # Webcam Activity Status (sync with Jitsi events)
+    # Webcam Activity Status (sync with LiveKit events)
     video_events = [v for v in violations if v.get("violation_type") in ["video_muted", "video_active"]]
     if video_events:
         webcam_status = "Muted" if video_events[-1].get("violation_type") == "video_muted" else "Active"
@@ -366,7 +377,7 @@ async def get_live_proctoring(candidate_id: str, current_user=Depends(get_curren
         else:
             webcam_status = "No Feed"
 
-    # Silence Detection (sync with Jitsi events)
+    # Silence Detection (sync with LiveKit events)
     mic_events = [v for v in violations if v.get("violation_type") in ["mic_muted", "mic_active", "long_silence"]]
     if mic_events:
         has_recent_silence = mic_events[-1].get("violation_type") in ["mic_muted", "long_silence"]
@@ -527,6 +538,15 @@ async def end_interview(
         }}
     )
     
+    # Clean up LiveKit room
+    livekit_room = candidate.get("interview", {}).get("livekit_room")
+    if livekit_room:
+        try:
+            from services.livekit_service import delete_room
+            await delete_room(livekit_room)
+        except Exception as lk_err:
+            print(f"[Interview End] LiveKit room delete warning: {lk_err}")
+
     # Trigger AI analysis pipeline
     import sys
     import os
@@ -734,8 +754,9 @@ async def generate_interview_questions(
 @router.get("/token/{secure_token}")
 async def get_interview_by_secure_token(secure_token: str):
     """
-    Public endpoint to resolve a secure interview token.
-    Returns candidate, job and meeting metadata.
+    Public endpoint to resolve a secure interview token (candidate side).
+    Validates the token, generates a LiveKit candidate JWT, and returns
+    everything the candidate page needs to join the call.
     """
     from database import jobs_col
     import os
@@ -743,20 +764,41 @@ async def get_interview_by_secure_token(secure_token: str):
     if not candidate:
         raise HTTPException(status_code=404, detail="Invalid interview token or session has expired")
 
-    job = await jobs_col.find_one({"_id": ObjectId(candidate["job_id"])})
-    
     interview = candidate.get("interview", {})
+    interview_status = interview.get("status", "scheduled")
+
+    # Reject if interview already completed or missed
+    if interview_status in ["completed", "missed", "cancelled"]:
+        raise HTTPException(status_code=410, detail=f"This interview has already {interview_status}. Please contact your recruiter.")
+
+    job = await jobs_col.find_one({"_id": ObjectId(candidate["job_id"])})
+    candidate_id = str(candidate["_id"])
+    room_name = interview.get("livekit_room")
+    livekit_url = interview.get("livekit_url") or os.getenv("LIVEKIT_URL", "")
+
+    # Generate a fresh candidate LiveKit token
+    livekit_token = None
+    if room_name:
+        try:
+            from services.livekit_service import generate_candidate_token
+            candidate_identity = f"candidate-{candidate_id}"
+            candidate_name = candidate.get("name", "Candidate")
+            livekit_token = generate_candidate_token(room_name, candidate_identity, candidate_name)
+        except Exception as e:
+            print(f"[Token] LiveKit candidate token generation failed: {e}")
+
     return {
-        "candidate_id": str(candidate["_id"]),
+        "candidate_id": candidate_id,
         "candidate_name": candidate.get("name"),
         "candidate_email": candidate.get("email"),
         "job_title": job.get("title", "Software Engineer") if job else "Software Engineer",
-        "meeting_link": interview.get("meeting_link"),
         "date": interview.get("date"),
         "time": interview.get("time"),
-        "status": interview.get("status"),
+        "status": interview_status,
         "duration": interview.get("duration", 30),
-        "jitsi_domain": os.getenv("JITSI_DOMAIN", "meet.jit.si")
+        "livekit_token": livekit_token,
+        "livekit_room": room_name,
+        "livekit_url": livekit_url,
     }
 
 class TokenRequest(BaseModel):
@@ -767,45 +809,67 @@ async def get_recruiter_token(
     req: TokenRequest,
     current_user=Depends(get_current_user),
 ):
+    """
+    Generate a LiveKit recruiter token (host/admin) for the interview room.
+    Called by the InterviewRoom page when the recruiter clicks 'Launch Session'.
+    """
+    import os
     candidate = await candidates_col.find_one({"_id": ObjectId(req.candidate_id), "created_by": current_user["email"]})
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     
     interview = candidate.get("interview") or {}
-    meeting_link = interview.get("meeting_link")
-    if not meeting_link:
-        raise HTTPException(status_code=400, detail="No interview scheduled or meeting link found")
-        
-    room = meeting_link.split("/")[-1]
-    import os
-    domain = os.getenv("JITSI_DOMAIN", "meet.jit.si")
-    
+    room_name = interview.get("livekit_room")
+    if not room_name:
+        raise HTTPException(status_code=400, detail="No interview room found. Please reschedule the interview.")
+
+    livekit_url = interview.get("livekit_url") or os.getenv("LIVEKIT_URL", "")
     display_name = current_user.get("name") or current_user.get("email") or "Recruiter"
-    
+    recruiter_identity = f"recruiter-{current_user.get('email', 'unknown').split('@')[0]}"
+
+    try:
+        from services.livekit_service import generate_recruiter_token
+        livekit_token = generate_recruiter_token(room_name, recruiter_identity, display_name)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Failed to generate interview token: {str(e)}")
+
     return {
-        "room": room,
-        "domain": domain,
-        "display_name": display_name
+        "livekit_token": livekit_token,
+        "livekit_room": room_name,
+        "livekit_url": livekit_url,
+        "display_name": display_name,
     }
 
 @router.post("/tokens/candidate")
 async def get_candidate_token(req: TokenRequest):
+    """
+    Generate a LiveKit candidate token (restricted participant).
+    Called by the candidate page on 'Join Interview' click.
+    """
+    import os
     candidate = await candidates_col.find_one({"_id": ObjectId(req.candidate_id)})
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-        
+
     interview = candidate.get("interview") or {}
-    meeting_link = interview.get("meeting_link")
-    if not meeting_link:
-        raise HTTPException(status_code=400, detail="No interview scheduled or meeting link found")
-        
-    room = meeting_link.split("/")[-1]
-    import os
-    domain = os.getenv("JITSI_DOMAIN", "meet.jit.si")
-    
+    room_name = interview.get("livekit_room")
+    if not room_name:
+        raise HTTPException(status_code=400, detail="No interview room found. Please contact your recruiter.")
+
+    livekit_url = interview.get("livekit_url") or os.getenv("LIVEKIT_URL", "")
+    candidate_id = str(candidate["_id"])
+    candidate_name = candidate.get("name", "Candidate")
+    candidate_identity = f"candidate-{candidate_id}"
+
+    try:
+        from services.livekit_service import generate_candidate_token
+        livekit_token = generate_candidate_token(room_name, candidate_identity, candidate_name)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Failed to generate session token: {str(e)}")
+
     return {
-        "room": room,
-        "domain": domain,
-        "token": None
+        "livekit_token": livekit_token,
+        "livekit_room": room_name,
+        "livekit_url": livekit_url,
     }
 

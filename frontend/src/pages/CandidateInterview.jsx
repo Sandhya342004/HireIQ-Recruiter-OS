@@ -4,6 +4,9 @@ import API from '../api/client';
 import toast from 'react-hot-toast';
 import { Camera, Mic, ShieldAlert, CheckCircle, Video, Play, AlertTriangle } from 'lucide-react';
 import InterviewMonitor from '../components/InterviewMonitor';
+import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react';
+import '@livekit/components-styles';
+import CustomInterviewCall from '../components/CustomInterviewCall';
 
 export default function CandidateInterview() {
   const { secureToken } = useParams();
@@ -28,19 +31,14 @@ export default function CandidateInterview() {
   // Interview state
   const [inCall, setInCall] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(true);
-  const [jitsiToken, setJitsiToken] = useState(null);
-  const [jitsiRoom, setJitsiRoom] = useState(null);
-  const [jitsiDomain, setJitsiDomain] = useState(null);
-  const [jitsiScriptLoaded, setJitsiScriptLoaded] = useState(false);
-  const [jitsiScriptError, setJitsiScriptError] = useState(null);
-  const [jitsiInitError, setJitsiInitError] = useState(null);
+  const [livekitToken, setLivekitToken] = useState(null);
+  const [livekitRoom, setLivekitRoom] = useState(null);
+  const [livekitUrl, setLivekitUrl] = useState(null);
 
   const videoPreviewRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const rafRef = useRef(null);
-  const jitsiContainerRef = useRef(null);
-  const jitsiApiRef = useRef(null);
 
   // Fetch interview metadata
   useEffect(() => {
@@ -65,26 +63,7 @@ export default function CandidateInterview() {
     fetchMetadata();
   }, [secureToken]);
 
-  // Load Jitsi Script
-  useEffect(() => {
-    if (window.JitsiMeetExternalAPI) {
-      setJitsiScriptLoaded(true);
-      return;
-    }
-    const existingScript = document.getElementById('jitsi-script');
-    if (existingScript) {
-      existingScript.addEventListener('load', () => setJitsiScriptLoaded(true));
-      existingScript.addEventListener('error', () => setJitsiScriptError('Failed to load Jitsi Meet library. Please check your internet connection.'));
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'jitsi-script';
-    script.src = 'https://meet.jit.si/external_api.js';
-    script.async = true;
-    script.onload = () => setJitsiScriptLoaded(true);
-    script.onerror = () => setJitsiScriptError('Failed to load Jitsi Meet library. Please check your internet connection.');
-    document.head.appendChild(script);
-  }, []);
+
 
   const reportViolation = async (type, severity, details) => {
     if (!candidateData?.candidate_id) return;
@@ -230,10 +209,9 @@ export default function CandidateInterview() {
       // Small timeout to allow document.activeElement to update
       setTimeout(() => {
         const activeEl = document.activeElement;
-        const jitsiIframe = jitsiContainerRef.current?.querySelector('iframe');
         
-        // If focus shifted to Jitsi iframe, it's not a tab switch
-        if (activeEl && (activeEl === jitsiIframe || activeEl.tagName === 'IFRAME')) {
+        // If focus shifted to any embedded iframe, it's not a tab switch
+        if (activeEl && activeEl.tagName === 'IFRAME') {
           return;
         }
 
@@ -428,7 +406,7 @@ export default function CandidateInterview() {
     }
   };
 
-  // Launch restricted Jitsi call
+  // Launch restricted LiveKit call
   const joinSecureInterview = async () => {
     if (!identityConfirmed) {
       toast.error('Please confirm your identity and proctoring consent.');
@@ -448,16 +426,16 @@ export default function CandidateInterview() {
 
     setLoading(true);
     try {
-      // Release camera preview stream to allow Jitsi to grab the hardware
+      // Release camera preview stream to allow LiveKit to grab the hardware
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
 
       // Fetch restricted candidate JWT token
       const res = await API.post('/interviews/tokens/candidate', { candidate_id: candidateData.candidate_id });
-      setJitsiToken(res.data.token);
-      setJitsiRoom(res.data.room);
-      setJitsiDomain(res.data.domain);
+      setLivekitToken(res.data.livekit_token);
+      setLivekitRoom(res.data.livekit_room);
+      setLivekitUrl(res.data.livekit_url);
       setInCall(true);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to authenticate secure session');
@@ -468,86 +446,6 @@ export default function CandidateInterview() {
       setLoading(false);
     }
   };
-
-  // Initialize Jitsi inside active room view
-  useEffect(() => {
-    if (!inCall || !jitsiRoom || !jitsiScriptLoaded || !window.JitsiMeetExternalAPI || !jitsiContainerRef.current) return;
-    if (jitsiApiRef.current) return;
-
-    try {
-      const options = {
-        roomName: jitsiRoom,
-        parentNode: jitsiContainerRef.current,
-        // Omit custom JWT token on public meet.jit.si to avoid authentication errors
-        jwt: undefined,
-        userInfo: {
-          displayName: candidateData?.candidate_name || 'Candidate',
-          email: candidateData?.candidate_email || '',
-        },
-        configOverwrite: {
-          autoJoin: true,
-          startWithAudioMuted: false,
-          startWithVideoMuted: false,
-          disableDeepLinking: true,
-          enableNoisyMicDetection: false,
-          hideConferenceTimer: false,
-          disableThirdPartyRequests: true,
-          prejoinConfig: { enabled: false }, // bypass double prejoin
-          // Candidate attendee restrictions (UI level)
-          disableScreensharing: true,
-          enableRecording: false,
-          enableLocalRecording: false,
-          hideConferenceSubject: true,
-          participantsPane: { enabled: false },
-          remoteVideoMenu: {
-            disableKick: true,
-            disableGrantModerator: true,
-          },
-          muteEveryone: false,
-          toolbarButtons: [
-            'microphone', 'camera', 'fullscreen',
-            'fodeviceselection', 'settings', 'raisehand',
-            'videoquality', 'filmstrip', 'shortcuts', 'tileview', 'chat'
-          ]
-        },
-        interfaceConfigOverwrite: {
-          SHOW_JITSI_WATERMARK: false,
-          SHOW_WATERMARK_FOR_GUESTS: false,
-          HIDE_INVITE_MORE_HEADER: true,
-          DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
-          TOOLBAR_BUTTONS: [
-            'microphone', 'camera', 'fullscreen',
-            'fodeviceselection', 'settings', 'raisehand',
-            'videoquality', 'filmstrip', 'shortcuts', 'tileview', 'chat'
-          ],
-        },
-        width: '100%',
-        height: '100%',
-      };
-
-      jitsiApiRef.current = new window.JitsiMeetExternalAPI(jitsiDomain || 'meet.jit.si', options);
-      jitsiApiRef.current.addEventListeners({
-        videoConferenceLeft: () => {
-          toast.success('You have left the secure session.');
-          window.location.reload();
-        },
-        readyToClose: () => {
-          toast.success('You have left the secure session.');
-          window.location.reload();
-        }
-      });
-    } catch (err) {
-      console.error('Jitsi initialization failed:', err);
-      setJitsiInitError(err.message || 'Failed to initialize Jitsi Meet iframe.');
-    }
-
-    return () => {
-      if (jitsiApiRef.current) {
-        jitsiApiRef.current.dispose();
-        jitsiApiRef.current = null;
-      }
-    };
-  }, [inCall, jitsiRoom, jitsiDomain, jitsiScriptLoaded, candidateData]);
 
   if (loading) {
     return (
@@ -593,47 +491,42 @@ export default function CandidateInterview() {
   if (inCall) {
     return (
       <div style={{ display: 'flex', height: '100vh', width: '100vw', background: '#020617', position: 'relative', overflow: 'hidden', fontFamily: 'Poppins, sans-serif' }}>
-        {/* Active Jitsi Area / Error State */}
-        {(jitsiScriptError || jitsiInitError) ? (
-          <div style={{ display: 'flex', flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-            <div style={{ maxWidth: 440, width: '100%', background: '#0f172a', border: '1px solid #fee2e2', borderRadius: 16, padding: 32, textAlign: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
-              <ShieldAlert size={48} style={{ color: '#ef4444', margin: '0 auto 16px' }} />
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: '#fca5a5', marginBottom: 12 }}>Connection Failure</h2>
-              <p style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 24 }}>
-                {jitsiScriptError || jitsiInitError}
-              </p>
-              {candidateData?.candidate_id && (
-                <button
-                  className="btn btn-danger"
-                  onClick={() => {
-                    const roomName = `interview-${candidateData.candidate_id}-${candidateData.candidate_id.slice(-8)}`;
-                    window.open(`https://meet.jit.si/${roomName}`, '_blank');
-                  }}
-                  style={{ width: '100%', padding: '12px', fontWeight: 600, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}
-                >
-                  Join Meeting Externally
-                </button>
-              )}
+        {/* Active LiveKit Video Area */}
+        {(!livekitToken || !livekitUrl) ? (
+          <div style={{ display: 'flex', flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', background: '#020617' }}>
+            <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+              <div style={{ border: '3px solid rgba(99, 102, 241, 0.1)', borderTop: '3px solid #6366f1', borderRadius: '50%', width: 40, height: 40, animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
+              <div style={{ fontSize: 13, fontWeight: 500 }}>Connecting to secure video stream...</div>
             </div>
           </div>
         ) : (
-          <>
-            <div ref={jitsiContainerRef} style={{ flex: 1, height: '100%', width: '100%' }} />
-            {!jitsiScriptLoaded && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#020617' }}>
-                <div style={{ textAlign: 'center', color: '#94a3b8' }}>
-                  <div className="spinner" style={{ margin: '0 auto 10px' }} />
-                  <div style={{ fontSize: 13 }}>Initializing secure encrypted video room...</div>
-                </div>
+          <div style={{ flex: 1, height: '100%', width: '100%', position: 'relative' }}>
+            <LiveKitRoom
+              video={true}
+              audio={true}
+              token={livekitToken}
+              serverUrl={livekitUrl}
+              connectOptions={{ autoSubscribe: true }}
+              onDisconnected={() => {
+                toast.success('You have left the secure session.');
+                setInCall(false);
+              }}
+              style={{ height: '100%', width: '100%' }}
+            >
+              <CustomInterviewCall
+                onLeave={() => setInCall(false)}
+                candidateName={candidateData.candidate_name}
+                recruiterName="Interviewer"
+              />
+              <RoomAudioRenderer />
+              
+              {/* Hidden / Floating Proctoring Engine */}
+              <div style={{ position: 'fixed', bottom: 84, right: 16, zIndex: 9999, width: 280 }}>
+                <InterviewMonitor candidateId={candidateData.candidate_id} />
               </div>
-            )}
-          </>
+            </LiveKitRoom>
+          </div>
         )}
-
-        {/* Hidden / Floating Proctoring Engine */}
-        <div style={{ position: 'fixed', bottom: 16, right: 16, zIndex: 9999, width: 280 }}>
-          <InterviewMonitor candidateId={candidateData.candidate_id} />
-        </div>
 
         {/* Fullscreen Warning Overlay */}
         {!isFullscreen && (
